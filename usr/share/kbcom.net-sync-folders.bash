@@ -1,0 +1,7 @@
+#!/bin/bash
+
+GLOBAL_FOLDER_SOURCE="$1"
+GLOBAL_FOLDER_DESTINATION="$2"
+
+#check létezik és nem üres
+scan_folder "$GLOBAL_FOLDER_SOURCE" "$GLOBAL_FOLDER_DESTINATION"
