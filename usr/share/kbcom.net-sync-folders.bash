@@ -12,6 +12,8 @@ then
  GLOBAL_FOLDER_SCRIPT="$(/bin/pwd)/$GLOBAL_FOLDER_SCRIPT"
 fi
 
+source "$GLOBAL_FOLDER_SCRIPT/.kbcom.net-sync-folders-errors.bash"
+source "$GLOBAL_FOLDER_SCRIPT/.kbcom.net-sync-folders-filesystem.bash"
 source "$GLOBAL_FOLDER_SCRIPT/.kbcom.net-sync-folders.bash"
 
 
