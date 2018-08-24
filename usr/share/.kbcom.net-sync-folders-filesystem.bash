@@ -1,19 +1,19 @@
 #!/bin/bash
 
-filesystem_checkfolder()
+filesystem_check_folder()
 {
  if [ ! -x "$CONFIG_ROOTFOLDER_BACKUP" ]
  then
-  error_showexit 30
+  error_showexit 10
  fi
 
  if [ ! -d "$CONFIG_ROOTFOLDER_BACKUP" ]
  then
-  error_showexit 31
+  error_showexit 11
  fi
 }
 
-filesystem_createdatedfolder()
+filesystem_create_datedfolders()
 {
  local LOCAL_DATETIME_NOW
 
@@ -21,7 +21,7 @@ filesystem_createdatedfolder()
 
  if [ "${#LOCAL_DATETIME_NOW}" -ne 14 ]
  then
-  error_showexit 32
+  error_showexit 12
  fi
 
  GLOBAL_ROOTFOLDER_BACKUP="$CONFIG_ROOTFOLDER_BACKUP/${LOCAL_DATETIME_NOW:0:6}/${LOCAL_DATETIME_NOW:0:8}/$LOCAL_DATETIME_NOW"
@@ -30,48 +30,66 @@ filesystem_createdatedfolder()
 
  if [ "$?" -ne 0 ]
  then
-  error_showexit 33
+  error_showexit 13
  fi
 }
 
-filesystem_copyfolderattributes()
+filesystem_copy_attributes()
 {
- # Copy folder attributes
+ # Copy folder entry attributes
  local LOCAL_FOLDER_COPYFROM="$1"
- local LOCAL_FOLDER_COPYTO="$2"
+ local LOCAL_FOLDERENTRY_COPYFROM="$2"
+ local LOCAL_FOLDER_COPYTO="$3"
 
- /bin/touch --reference="$LOCAL_FOLDER_COPYFROM" "$LOCAL_FOLDER_COPYTO"
+ /bin/touch --reference="$LOCAL_FOLDER_COPYFROM/$LOCAL_FOLDERENTRY_COPYFROM" "$LOCAL_FOLDER_COPYTO/$LOCAL_FOLDERENTRY_COPYFROM"
 
  if [ "$?" -ne 0 ]
  then
-  error_show 40
+  error_show 20
  fi
 
- /bin/chmod --reference="$LOCAL_FOLDER_COPYFROM" "$LOCAL_FOLDER_COPYTO"
+ /bin/chmod --reference="$LOCAL_FOLDER_COPYFROM/$LOCAL_FOLDERENTRY_COPYFROM" "$LOCAL_FOLDER_COPYTO/$LOCAL_FOLDERENTRY_COPYFROM"
 
  if [ "$?" -ne 0 ]
  then
-  error_show 40
+  error_show 21
  fi
 
- /bin/chown --reference="$LOCAL_FOLDER_COPYFROM" "$LOCAL_FOLDER_COPYTO"
+ /bin/chown --reference="$LOCAL_FOLDER_COPYFROM/$LOCAL_FOLDERENTRY_COPYFROM" "$LOCAL_FOLDER_COPYTO/$LOCAL_FOLDERENTRY_COPYFROM"
 
  if [ "$?" -ne 0 ]
  then
-  error_show 40
+  error_show 22
  fi
 
- /usr/bin/getfacl -p "$LOCAL_FOLDER_COPYFROM" | /usr/bin/setfacl --set-file=- "$LOCAL_FOLDER_COPYTO"
+ /usr/bin/getfacl -p "$LOCAL_FOLDER_COPYFROM/$LOCAL_FOLDERENTRY_COPYFROM" | /usr/bin/setfacl --set-file=- "$LOCAL_FOLDER_COPYTO/$LOCAL_FOLDERENTRY_COPYFROM"
 
  if [ "$?" -ne 0 ]
  then
-  error_show 40
+  error_show 23
  fi
 }
 
-filesystem_copyfile()
+filesystem_copy_folder()
 {
- # New file creation
+ # Copy folder (create and copy attributes)
+ local LOCAL_FOLDER_COPYFROM="$1"
+ local LOCAL_FOLDERNAME_COPYFROM="$2"
+ local LOCAL_FOLDER_COPYTO="$3"
+
+ /bin/mkdir "$LOCAL_FOLDER_COPYTO/$LOCAL_FOLDERNAME_COPYFROM"
+
+ if [ "$?" -ne 0 ]
+ then
+  error_showexit 24
+ fi
+
+ filesystem_copy_attributes "$LOCAL_FOLDER_COPYFROM/$LOCAL_FOLDERNAME_COPYFROM" "$LOCAL_FOLDER_COPYTO/$LOCAL_FOLDERNAME_COPYFROM"
+}
+
+filesystem_copy_file()
+{
+ # Copy file with ctime
  local LOCAL_FOLDER_COPYFROM="$1"
  local LOCAL_FILENAME_COPYFROM="$2"
  local LOCAL_FOLDER_COPYTO="$3"
@@ -84,48 +102,77 @@ filesystem_copyfile()
 
  if [ "$?" -ne 0 ]
  then
-  error_show 40
+  error_show 25
  fi
 
  /usr/bin/setfattr -n "user.kbcom.net:ctime" -v "$LOCAL_CTIME_COPYFROM" "$LOCAL_FOLDER_COPYTO/$LOCAL_FILENAME_COPYFROM"
 
  if [ "$?" -ne 0 ]
  then
-  error_show 41
+  error_show 26
  fi
 }
 
-filesystem_movefile()
+filesystem_copy_tree()
 {
- # Move a file
- local LOCAL_FOLDER_MOVEFROM="$1"
- local LOCAL_FILENAME_MOVEFROM="$2"
- local LOCAL_FOLDER_MOVETO="$3"
+ # New tree creation
+ local LOCAL_FOLDER_COPYFROM="$1"
+ local LOCAL_FOLDERNAME_COPYFROM="$2"
+ local LOCAL_FOLDER_COPYTO="$3"
 
- /bin/mv "$LOCAL_FOLDER_MOVEFROM/$LOCAL_FILENAME_MOVEFROM" "$LOCAL_FOLDER_MOVETO"
+ local LOCAL_ENTRYARRAY_SOURCEFOLDER
+ local LOCAL_ENTRY_SOURCEFOLDER
 
- if [ $? -ne 0 ]
+ filesystem_copy_folder "$LOCAL_FOLDER_COPYFROM" "$LOCAL_FOLDERNAME_COPYFROM" "$LOCAL_FOLDER_COPYTO"
+
+ cd "$LOCAL_FOLDER_COPYFROM/$LOCAL_FOLDERNAME_COPYFROM"
+
+ if [ "$?" -ne 0 ]
  then
-  error_showexit 34
+  error_show 27
  fi
+
+ LOCAL_ENTRYARRAY_COPYFROM=(*)
+
+ if [ "$?" -ne 0 ]
+ then
+  error_show 27
+ fi
+
+ IFS=$'\n'
+ for LOCAL_ENTRY_COPYFROM in ${LOCAL_ENTRYARRAY_COPYFROM[@]}
+ do
+  # If folder empty
+  if [ "$LOCAL_ENTRY_COPYFROM" == "*" ]
+  then
+   break
+  fi
+
+  if [ -d "$LOCAL_FOLDER_COPYFROM/$LOCAL_ENTRY_COPYFROM" ]
+  then
+   filesystem_copytree "$LOCAL_FOLDER_COPYFROM" "$LOCAL_ENTRY_COPYFROM" "$LOCAL_FOLDER_COPYTO"
+  else
+   filesystem_copyfile "$LOCAL_FOLDER_COPYFROM" "$LOCAL_ENTRY_COPYFROM" "$LOCAL_FOLDER_COPYTO"
+  fi
+ done
 }
 
-filesystem_movetree()
+filesystem_move_filetree()
 {
  # Move a tree
  local LOCAL_FOLDER_MOVEFROM="$1"
- local LOCAL_FOLDERNAME_MOVEFROM="$2"
+ local LOCAL_FOLDERENTRYNAME_MOVEFROM="$2"
  local LOCAL_FOLDER_MOVETO="$3"
 
- /bin/mv "$LOCAL_FOLDER_MOVEFROM/$LOCAL_FOLDERNAME_MOVEFROM" "$LOCAL_FOLDER_MOVETO"
+ /bin/mv "$LOCAL_FOLDER_MOVEFROM/$LOCAL_FOLDERENTRYNAME_MOVEFROM" "$LOCAL_FOLDER_MOVETO"
 
  if [ $? -ne 0 ]
  then
-  error_showexit 34
+  error_showexit 31
  fi
 }
 
-backup_copy_parentfolders()
+filsystem_copy_parentfolders()
 {
 # check not vanished
  local LOCAL_ROOTFOLDER_COPYFROM="$CONFIG_ROOTFOLDER_DESTINATION"
@@ -164,36 +211,4 @@ backup_copy_parentfolders()
 
  /bin/mkdir "${LOCAL_ROOTFOLDER_COPYTO}${LOCAL_SUBFOLDER_COPYFROM}"
  filesystem_copyfolderattributes "${LOCAL_ROOTFOLDER_COPYFROM}${LOCAL_SUBFOLDER_COPYFROM}" "${LOCAL_ROOTFOLDER_COPYTO}${LOCAL_SUBFOLDER_COPYFROM}"
-}
-
-filesystem_copytree()
-{
- # New tree creation
- local LOCAL_FOLDER_COPYFROM="$1"
- local LOCAL_FOLDER_COPYTO="$2"
-
- local LOCAL_ENTRYARRAY_SOURCEFOLDER
- local LOCAL_ENTRY_SOURCEFOLDER
-
- cd "$LOCAL_FOLDER_COPYFROM"
- LOCAL_ENTRYARRAY_SOURCEFOLDER=(*)
-
- IFS=$'\n'
- for LOCAL_ENTRY_SOURCEFOLDER in ${LOCAL_ENTRYARRAY_SOURCEFOLDER[@]}
- do
-  # If folder empty
-  if [ "$LOCAL_ENTRY_SOURCEFOLDER" == "*" ]
-  then
-   break
-  fi
-
-  if [ -d "$LOCAL_FOLDER_COPYFROM/$LOCAL_ENTRY_SOURCEFOLDER" ]
-  then
-   /bin/mkdir "$LOCAL_FOLDER_COPYTO/$LOCAL_ENTRY_SOURCEFOLDER"
-   filesystem_copyfolderattributes "$LOCAL_FOLDER_COPYFROM/$LOCAL_ENTRY_SOURCEFOLDER" "$LOCAL_FOLDER_COPYTO/$LOCAL_ENTRY_SOURCEFOLDER"
-   filesystem_copytree "$LOCAL_FOLDER_COPYFROM/$LOCAL_ENTRY_SOURCEFOLDER" "$LOCAL_FOLDER_COPYTO/$LOCAL_ENTRY_SOURCEFOLDER"
-  else
-   filesystem_copyfile "$LOCAL_FOLDER_COPYFROM" "$LOCAL_ENTRY_SOURCEFOLDER" "$LOCAL_FOLDER_COPYTO"
-  fi
- done
 }
